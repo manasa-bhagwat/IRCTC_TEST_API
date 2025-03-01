@@ -2,54 +2,47 @@ package com.bhagwat.rest;
 
 import com.bhagwat.request.Passenger;
 import com.bhagwat.response.Ticket;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Random;
+import java.util.concurrent.atomic.AtomicInteger;
 
-@CrossOrigin(origins = "http://localhost:9090")
 @RestController
+@RequestMapping("/irctc")
 public class IrctcRestController {
 
-    public int ticketId = 101;
-
+    private AtomicInteger ticketIdCounter = new AtomicInteger(101);
     private Map<Integer, Ticket> tickets = new HashMap<>();
 
-    @PostMapping(
-            value = "/book/ticket",
-            consumes = {"application/xml","application/json"},
-            produces = {"application/xml","application/json"}
-    )
-    public Ticket bookTicket(@RequestBody Passenger passenger) {
+    @PostMapping(value = "/book/ticket", produces = "application/json", consumes = "application/json")
+    public ResponseEntity<Ticket> bookTicket(@RequestBody Passenger passenger) {
+        System.out.println("Received Passenger details: " + passenger);
 
-        System.out.println("Received Passenger details to Control Layer." + passenger);
-        // logic to book ticket
         Ticket ticket = new Ticket();
+        int ticketId = ticketIdCounter.getAndIncrement();
 
-        Random r = new Random();
         ticket.setTicketId(ticketId);
-
         ticket.setFrom(passenger.getFrom());
         ticket.setTo(passenger.getTo());
         ticket.setTicketStatus("CONFIRMED");
         ticket.setTrainNum(passenger.getTrainNum());
         ticket.setTktCost("1500.00 INR");
 
-        tickets.put(ticketId, ticket);
-        ticketId++;
+        tickets.put(ticketId, ticket); // Store ticket in the map
 
-        return ticket;
+        return ResponseEntity.ok(ticket);
     }
 
-    @GetMapping(
-            value = "/get/ticket/{ticketId}",
-            produces = {"application/xml","application/json"}
-    )
-    public Ticket getTicket(@PathVariable Integer ticketId) {
-        System.out.println(tickets);
+    @GetMapping(value = "/get/ticket/{ticketId}", produces = "application/json")
+    public ResponseEntity<?> getTicket(@PathVariable Integer ticketId) {
+        System.out.println("Current tickets: " + tickets);
 
-        if (tickets.containsKey(ticketId)) return tickets.get(ticketId);
-        return null;
+        Ticket ticket = tickets.get(ticketId);
+        if (ticket != null) {
+            return ResponseEntity.ok(ticket);
+        }
+        return ResponseEntity.status(404).body("Ticket Not Found");
     }
 }
