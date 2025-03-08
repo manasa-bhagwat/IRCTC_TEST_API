@@ -49,6 +49,7 @@ c. Firewall rule to allow ports: IRCTC_API_jenkins-vm-gke
     check in the UI.
 5. SSH into jenkins-master-vm - (check for all proper installations)
     java --version
+    mvn -version
     docker --version
     gcloud --version
     kubectl version --client
@@ -69,11 +70,14 @@ Step 2.1: Configure jenkins on jenkins-master-vm.
                                         -> apply.
 5. install plugins: 
     Eclipse Temurin installer
+    Config file provider
+    Pipeline maven integration
     SonarQube Scanner
     Sonar Quality Gates
     Quality Gates
     Docker, commons, pipeline, api, buildstep
     GKE plugin
+    Kubernetes, cli, client api, credentials
 
 ........
 Step 2.2: Configure SonarQube.
@@ -92,12 +96,19 @@ Step 2.2: Configure SonarQube.
 
 
 install tools:
-    add JDK: jdk17, remove installer, add installed=> install from adoptium.ne=> select jdk-17
-    add docker: docker, install automatically, download from docker
-    add SonarQube Scanner installations : name: sonarqube-server, SonarQube-Scanner -> server url: jenkins-master-vm:9000, server authentication token: sonarqube-token
+    add JDK: name:jdk17, install automatically -> jdk-17
+    add maven: name:maven3, install automatically -> maven 3.6.1
+    add docker: name:docker, install automatically -> download from docker.com -> latest
+    add SonarQube Scanner : name:sonarqube-server, server url: jenkins-master-vm:9000, server authentication token: sonarqube-token
+
+setup e-mail: 
+    Manage Jenkins -> System -
+        Extended email notification -> SMTP Server: smtp.gmail.com, Port: 587
+        Advanced -> use SSL -> add credentials -> username=maansa.bhagwat@gmail.com , password=slfuugbdkjvwhadb -> id, desc: mail-credentials.
+        Email Notification -> SMTP Server: smtp.gmail.com, Port: 587 -> use SMTP authentication -> give username, password, port -> use SSL -> Save.
+    test email configuration -> give maansa.bhagwat@gmail.com -> test (to see email successfully sent).
 
 select restart jenkins option.
-
 
 .......
 Step 3: integrate Dockerhub with jenkins.
