@@ -1,0 +1,93 @@
+pipeline {
+    agent any
+    
+    tools {
+        jdk 'jdk17'
+    }
+    
+    environment {
+        SCANNER_HOME = tool 'sonarqube-scanner'
+        PROJECT_ID = 'api-devops-pipeline'
+        CLUSTER_NAME = 'IRCTC_API_gke-cluster'
+        LOCATION = 'us-central1'
+        CREDENTIALS_ID = 'kubernetes-service-account-token'
+    }
+    
+    stages {
+        stage('Clean Workspace') {
+            steps {
+                cleanWs()
+            }
+        }
+        
+        stage('Checkout from Git') {
+            steps {
+                git branch: 'main', url: 'https://github.com/manasa-bhagwat/IRCTC_TEST_API.git'
+            }
+        }
+
+        stage('Build with Maven') {
+            steps {
+                sh 'mvn clean install -DskipTests'
+            }
+        }
+
+        stage("Sonarqube Analysis") {
+            steps {
+                withSonarQubeEnv('sonarqube-server') {
+                    withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
+                        sh '''$SCANNER_HOME/bin/sonar-scanner \
+                            -Dsonar.projectKey=IRCTC-API-CI \
+                            -Dsonar.projectName=IRCTC-API-CI \
+                            -Dsonar.sources=src/main/java \
+                            -Dsonar.java.binaries=target/classes \
+                            -Dsonar.login=$SONAR_TOKEN'''
+                    }
+                }
+            }
+        }
+
+
+
+
+        stage('TRIVY FS SCAN') {
+            steps {
+                sh "trivy fs . > trivyfs.txt"
+            }
+        }
+
+        stage("Build image") {
+            steps {
+                script {
+                    myapp = docker.build("manasabhagwat/irctc_test_api:${env.BUILD_ID}")
+                }
+            }
+        }
+
+        stage("Push image") {
+            steps {
+                script {
+                    docker.withRegistry('https://registry.hub.docker.com', 'docker-token') {
+                        myapp.push("latest")
+                        myapp.push("${env.BUILD_ID}")
+                    }
+                }
+            }
+        }
+
+        stage('Deploy to GKE') {
+            steps {
+                script {
+                    sh "sed -i 's/irctc_test_api:latest/irctc_test_api:${env.BUILD_ID}/g' Kubernetes/irctc-deployment.yml"
+                    step([$class: 'KubernetesEngineBuilder', 
+                    projectId: env.PROJECT_ID, 
+                    clusterName: env.CLUSTER_NAME, 
+                    location: env.LOCATION, 
+                    manifestPattern: 'Kubernetes/irctc-deployment.yml', 
+                    credentialsId: env.CREDENTIALS_ID, 
+                    verifyDeployments: true])
+                }
+            }
+        }
+    }
+}

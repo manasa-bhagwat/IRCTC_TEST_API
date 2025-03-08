@@ -1,0 +1,166 @@
+*************************************************************************************************************************************************************************
+Title: End to end CI/CD Pipeline on GCP for IRCTC_API
+*****
+
+...........
+Objectives:
+...........
+1. create a seamless, automated CI/CD Pipeline for IRCTC_API service.
+2. Enhance collaboration and streamline deployment processes using DevOps tools.
+3. Achieve continuous integration, testing and deployment with GCP.
+
+........................
+High-Level Architecture:
+........................
+1. Utilize GCP services such as Google Compute, and Google Kubernetes Cluster.
+2. Employ Jenkins for automation, Github for version control, and Terraform for Infrastructure as Code(IaaC).
+3. Implement containerization with Docker and vulnerability scanning with Trivy.
+4. Integrate SonarQube for code quality analysis.
+
+......................
+Programming languages:
+......................
+Java - Spring framework.
+
+
+========================================================================================================
+Implementation
+==============
+.......
+Step 1: Using Terraform to create Infrastructure.
+.......
+a. Compute Engine VM: IRCTC_API_jenkins-master-VM
+    Once vm is created, startup script installs "java, gcli, kubectl, gke plugin, jenkins, docker, SonarQube, Trivy"
+b. Kubernetes cluster: IRCTC_API_gke-cluster
+c. Firewall rule to allow ports: IRCTC_API_jenkins-vm-gke
+
+
+1. set project on GCP Cloud shell -
+    gcloud config set project api-devops-pipeline
+2. make folders -
+    mkdir irctc_devops_pipeline
+    mkdir terraform
+3. copy files - 
+    main.tf, provider.tf, master_install.sh
+4. execute terraform code - 
+    terraform init
+    terraform plan
+    terraform apply -auto-approve (will take approx. 10 mins)
+    check in the UI.
+5. SSH into jenkins-master-vm - (check for all proper installations)
+    java --version
+    docker --version
+    gcloud --version
+    kubectl version --client
+    gke-gcloud-auth-plugin --version
+    systemctl status jenkins (if running, copy initial password from this O/P)
+    also copy external-ip of jenkins-master-vm.
+
+........
+Step 2.1: Configure jenkins on jenkins-master-vm.
+........
+
+1. open browser, enter external-ip of jenkins-master-vm:8080
+2. give the initial password copied from 'systemctl status jenkins' O/Pipeline.
+3. setup plugins, give initial username, password, etc. save and continue.
+4. go to Manage Jenkins -> Security -> 
+                                        Agents: set TCP - Random 
+                                        CSRF: enable proxy compatibilty
+                                        -> apply.
+5. install plugins: 
+    Eclipse Temurin installer
+    SonarQube Scanner
+    Sonar Quality Gates
+    Quality Gates
+    Docker, commons, pipeline, api, buildstep
+    GKE plugin
+
+........
+Step 2.2: Configure SonarQube.
+........ 
+1. open browser, enter external-ip of jenkins-master-vm:9000
+2. enter default username and password: admin, admin
+3. set new password.
+4. generate token to integrate with jenkins -
+    adminstration -> Security -> users -> click on tokens
+    enter -> "token-for-jenkins" -> generate
+    copy and save that token.
+5. create a SonarQube quality gate named -> "sonarqube-quality-gate".
+6. adminstration -> webhooks -> create new -> name: "jenkins", url: "jenkins-master-vm:9000/sonarqube-webhook/"
+7. now go back to jenkins UI.
+    Manage Jenkins -> credentials-> Domains: (global)-> dropdown ->add credentials -> kind: secret text -> secret: paste the token from sonarqube -> id, desc: sonarqube-token -> save
+
+
+install tools:
+    add JDK: jdk17, remove installer, add installed=> install from adoptium.ne=> select jdk-17
+    add docker: docker, install automatically, download from docker
+    add SonarQube Scanner installations : name: sonarqube-server, SonarQube-Scanner -> server url: jenkins-master-vm:9000, server authentication token: sonarqube-token
+
+select restart jenkins option.
+
+
+.......
+Step 3: integrate Dockerhub with jenkins.
+.......
+1. go to Dockerhub -> settings -> Security -> generate new token -> name: "docker-token" -> generate.
+2. copy and save the token.
+4. now go back to jenkins UI.
+    Manage Jenkins -> credentials-> Domains: (global)-> dropdown -> add credentials -> kind:username with password -> username: docker username, password: paste docker-token generated, id, desc: docker -> save.
+
+.......
+Step 4: GCP IAM Service account, adding permissions.
+.......
+1. go to GCP console -> IAM -> service account.
+2. create service account -> name: "gke-service-account-jenkins" -> grant Role -> "Kubernetes Engine Admin" -> Done.
+3. open gke-service-account-jenkins service account -> Keys -> create new key -> JSON type -> save the file to local.
+4. now go back to jenkins UI.
+    Manage Jenkins -> credentials-> Domains: (global)-> dropdown ->add credentials -> Google service account from private key -> id, desc, project name: kubernetes-service-account-token -> upload JSON key file -> save.
+
+.......
+Step 5: Kubernetes cluster setup, GCP cli, kubectl, kubernetes plugin, Connect, service account, jenkins.
+.......
+1. give access of kubernetes to jenkins-master-vm (logging into gcloud from jenkins-master-vm) -
+    SSH into jenkins-master-vm -> gcloud auth login -> click link -> authenticate -> copy code -> paste back on ssh of jenkins-master-vm -> connected.
+2. gcloud config set project irctc_devops_pipeline (if not set).
+3. Go to GCP -> GKE -> Connect to IRCTC_API_gke-cluster -> click connect -> copy command-line access command.
+4. come back to jenkins-master-vm SSH console -> paste command-line access command -> connected to GKE cluster. -> check cmd: kubectl get nodes.
+
+.......
+Step 6: Jenkins CI/CD pipeline - set trigger to automate as code changes happen.
+.......
+1. create new item -> name: IRCTC_cicd_pipeline -> type: pipeline.
+2. in Configure -> paste jenkins pipeline into script ( from Jenkinsfile file) -> save.
+3. in Build Triggers -> select Github hook trigger for GITScm polling.
+4. add github project url.
+5. now go to github project repo -> settings -> webhooks -> add new -> payloadUrl: jenkins-master-vm:8080/github-webhook/ -> add/save. 
+6. click Build Now, to build pipeline.
+
+.......
+Step 7: Test and verify.
+.......
+1. go to github source code repository, modify something to trigger pipeline.
+2. check for build Success or Fail.
+3. if failing because of space issues: run following cmds on jenkins-master-vm SSH console - to clean.
+    docker system prune -af
+    sudo apt autoremove --purge
+    sudo rm -rf /tmp/*
+    sudo apt-clean
+    rm -r ~/.cache/thumbnails/*
+4. go to GKE -> Workloads -> click on irctc-api -> access the endpoint to check app ir running.
+
+=======================================================================================================================================================================
+Step 8: Clean and Destroy from Terraform
+=======
+1. on completion of successfull pipeline execution, go to GCP Cloud shell -
+    run command: terraform destroy
+to avoid unnecessary charges.
+
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+
+
+
+
