@@ -1,0 +1,10 @@
+#if using type: NodePort ->
+---------------------------
+
+kubectl apply -f irctc-deployment.yml
+kubectl apply -f irctc-service.yml
+
+kubectl expose deployment irctc-deployment --type=NodePort --name=irctc-service --port=8082 --target-port=8082
+
+#another tab
+kubectl port-forward svc/irctc-service 8082:8082

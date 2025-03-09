@@ -1,0 +1,22 @@
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: irctc-deployment
+  labels:
+    app: irctc
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: irctc
+  template:
+    metadata:
+      labels:
+        app: irctc
+    spec:
+      containers:
+        - name: irctc-container
+          image: manasabhagwat/irctc_test_api:latest
+          ports:
+            - containerPort: 8082
